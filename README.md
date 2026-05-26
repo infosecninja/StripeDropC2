@@ -132,8 +132,8 @@ pip install stripe
 nano operator/c2_config.py
 # Set: API_KEY = "sk_test_YOUR_KEY_HERE"
 
-# Edit operator/regenerate_key.py (line 28)  
-nano operator/regenerate_key.py
+# Edit implant/regenerate_key.py (line 28)  
+nano implant/regenerate_key.py
 # Set: YOUR_STRIPE_API_KEY = "sk_test_YOUR_KEY_HERE"
 
 # IMPORTANT: Both files must have the SAME API key!
