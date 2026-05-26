@@ -1,6 +1,12 @@
 # StripeDropC2
 
-A covert Command & Control (C2) framework that leverages Stripe's API infrastructure as a communication channel, providing stealth and resilience through legitimate cloud services.
+<p align="center">
+  <img src="docs/images/stripedropc2_logo.svg" alt="StripeDropC2 Logo" width="600">
+</p>
+
+<p align="center">
+  A covert Command & Control (C2) framework that leverages Stripe's API infrastructure as a communication channel, providing stealth and resilience through legitimate cloud services.
+</p>
 
 ![Language](https://img.shields.io/badge/Language-C%23%20%2F%20Python-blue)
 ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
