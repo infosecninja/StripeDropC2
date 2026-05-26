@@ -18,28 +18,51 @@ StripeDropC2 is a proof-of-concept C2 framework that demonstrates how cloud paym
 
 ### Key Features
 
-- ** Covert Channel**: Uses Stripe Customer objects as encrypted message drops
-- ** Traffic Camouflage**: All communications appear as legitimate HTTPS API calls to Stripe
-- ** String Obfuscation**: XOR-encrypted strings in compiled binary to evade static analysis
-- ** Dynamic Configuration**: Real-time adjustment of polling intervals and stealth profiles
-- ** File Transfer**: Chunked upload/download with automatic reassembly
-- ** Screenshot Capture**: Remote desktop surveillance via GDI+ integration
-- ** Persistence**: Multiple installation methods (Registry, Startup, Scheduled Tasks)
-- ** Stealth Modes**: Four profiles from fast-response to maximum stealth
-- ** Self-Protection**: Automatic relocation to legitimate-looking Windows paths
+- **Covert Channel**: Uses Stripe Customer objects as encrypted message drops
+- **Traffic Camouflage**: All communications appear as legitimate HTTPS API calls to Stripe
+- **String Obfuscation**: XOR-encrypted strings in compiled binary to evade static analysis
+- **Dynamic Configuration**: Real-time adjustment of polling intervals and stealth profiles
+- **File Transfer**: Chunked upload/download with automatic reassembly
+- **Screenshot Capture**: Remote desktop surveillance via GDI+ integration
+- **Persistence**: Multiple installation methods (Registry, Startup, Scheduled Tasks)
+- **Stealth Modes**: Four profiles from fast-response to maximum stealth
+- **Self-Protection**: Automatic relocation to legitimate-looking Windows paths
+
+## Demo Videos
+
+### File Transfer (Upload/Download)
+Demonstrates chunked file upload and download with automatic reassembly and progress tracking.
+
+<p align="center">
+  <img src="media/demos/upload-download-demo.gif" alt="File Transfer Demo" width="800">
+</p>
+
+### Screenshot Capture
+Shows remote desktop surveillance with automatic timestamping and local storage.
+
+<p align="center">
+  <img src="media/demos/screenshot-demo.gif" alt="Screenshot Capture Demo" width="800">
+</p>
+
+### Android Operator
+Full C2 control from Android devices via Termux - demonstrating true mobile operator capabilities.
+
+<p align="center">
+  <img src="media/demos/android-operator-demo.gif" alt="Android Operator Demo" width="800">
+</p>
 
 ## Architecture
 
 ```
-
-C2 Operator Stripe API Target (Implant) 
-(Python) (Cloud) (C# .NET) 
-
-• Issue commands HTTPS 443 • Customer DB HTTPS 443 • Execute cmds 
-• Receive results • Metadata KV • File transfers 
-• File management • Rate limiting • Screenshots 
-• Config control • Search index • Persistence 
-
+┌─────────────────────┐              ┌──────────────────┐              ┌─────────────────────┐
+│   C2 Operator       │              │   Stripe API     │              │   Target (Implant)  │
+│   (Python)          │◄────────────►│   (Cloud)        │◄────────────►│   (C# .NET)         │
+│                     │              │                  │              │                     │
+│  • Issue commands   │   HTTPS 443  │  • Customer DB   │   HTTPS 443  │  • Execute cmds     │
+│  • Receive results  │              │  • Metadata KV   │              │  • File transfers   │
+│  • File management  │              │  • Rate limiting │              │  • Screenshots      │
+│  • Config control   │              │  • Search index  │              │  • Persistence      │
+└─────────────────────┘              └──────────────────┘              └─────────────────────┘
 ```
 
 ### Communication Flow
@@ -117,7 +140,7 @@ python3 regenerate_key.py
 cd ..
 ```
 
-** YOU MUST RUN THIS BEFORE EVERY BUILD!** This randomizes the XOR key and encrypted strings in `implant/Implant.cs`, changing the binary signature to evade detection. Skipping this step means:
+**YOU MUST RUN THIS BEFORE EVERY BUILD!** This randomizes the XOR key and encrypted strings in `implant/Implant.cs`, changing the binary signature to evade detection. Skipping this step means:
 - Static signatures will detect your implant
 - Strings can be extracted from the binary
 - Multiple builds have identical signatures
@@ -252,20 +275,20 @@ dotnet publish Implant.csproj -c Release -r win-x64 \
 
 ### Advantages
 
-**Legitimate Infrastructure**: All traffic goes to Stripe.com (widely trusted) 
-**HTTPS Everywhere**: No custom protocols or unusual ports 
-**Cloud Resilience**: No single point of failure, globally distributed 
-**Rate Limiting**: Built-in throttling prevents suspiciously high request rates 
-**String Obfuscation**: XOR encryption prevents string extraction from binary 
-**Dynamic Reconfiguration**: Change timing without recompiling 
+- **Legitimate Infrastructure**: All traffic goes to Stripe.com (widely trusted) 
+- **HTTPS Everywhere**: No custom protocols or unusual ports 
+- **Cloud Resilience**: No single point of failure, globally distributed 
+- **Rate Limiting**: Built-in throttling prevents suspiciously high request rates 
+- **String Obfuscation**: XOR encryption prevents string extraction from binary 
+- **Dynamic Reconfiguration**: Change timing without recompiling 
 
 ### Limitations
 
-**API Key Exposure**: If key is compromised, entire C2 is burned 
-**Stripe Rate Limits**: Test mode limited to ~100 requests/second 
-**Billing Traces**: Live mode creates financial audit trail 
-**Network Anomalies**: High-frequency Stripe API calls may be unusual for target org 
-**Metadata Limits**: 500 chars per field, requires chunking for large data 
+- **API Key Exposure**: If key is compromised, entire C2 is burned 
+- **Stripe Rate Limits**: Test mode limited to ~100 requests/second 
+- **Billing Traces**: Live mode creates financial audit trail 
+- **Network Anomalies**: High-frequency Stripe API calls may be unusual for target org 
+- **Metadata Limits**: 500 chars per field, requires chunking for large data 
 
 ### Best Practices
 
@@ -305,20 +328,6 @@ dotnet publish Implant.csproj -c Release -r win-x64 \
 4. **Application Whitelisting**: Only allow known payment applications to access Stripe
 5. **Memory Analysis**: Look for XOR-decrypted strings in process memory
 
-## Project Structure
-
-```
-StripeDropC2/
-Implant.cs # C# implant source code
-Implant.csproj # .NET project configuration
-c2_operator.py # Python C2 operator console
-c2_config.py # Stripe API key configuration (create this)
-regenerate_key.py # XOR key regeneration utility
-README.md # This file
-LICENSE # MIT License
-.gitignore # Git ignore rules
-```
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit pull requests or open issues for:
@@ -353,6 +362,6 @@ Use responsibly and only in authorized environments.
 
 ---
 
-** Built for security researchers, penetration testers, and red teams**
+**Built for security researchers, penetration testers, and red teams**
 
 *"The best place to hide is in plain sight"*
