@@ -139,7 +139,7 @@ nano implant/regenerate_key.py
 # IMPORTANT: Both files must have the SAME API key!
 ```
 
-4. ** CRITICAL: Regenerate implant encryption key:**
+4. **CRITICAL: Regenerate implant encryption key:**
 ```bash
 cd operator
 python3 regenerate_key.py
